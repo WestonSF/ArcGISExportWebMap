@@ -92,12 +92,26 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
                 legend.elementPositionX = -5000
                 legend.elementPositionY = -5000
 
+                ### Custom code for WCC ###
+                # Remove all graphic elements
+                #for element in arcpy.mapping.ListLayoutElements(mxd, "GRAPHIC_ELEMENT"):
+                #    # Remove the graphic by moving it off the page
+                #    element.elementPositionX = -5000
+                #    element.elementPositionY = -5000
                 # Resize data frame element if needed by adding values - Height, width, X and Y
-                reSizeElement(mxd,"DATAFRAME_ELEMENT",0,0,0,0)
+                #dataFrameElement = arcpy.mapping.ListLayoutElements(mxd, "DATAFRAME_ELEMENT")[0]
+                #reSizeElement(mxd,"DATAFRAME_ELEMENT",dataFrameElement.elementHeight,mxd.pageSize.width-2,dataFrameElement.elementPositionX,dataFrameElement.elementPositionY)
         # No legend element
-        else:
+        #else:
+            ### Custom code for WCC ###
+            # Remove all graphic elements
+            #for element in arcpy.mapping.ListLayoutElements(mxd, "GRAPHIC_ELEMENT"):
+            #    # Remove the graphic by moving it off the page
+            #    element.elementPositionX = -5000
+            #    element.elementPositionY = -5000
             # Resize data frame element if needed by adding values - Height, width, X and Y
-            reSizeElement(mxd,"DATAFRAME_ELEMENT",0,0,0,0)
+            #dataFrameElement = arcpy.mapping.ListLayoutElements(mxd, "DATAFRAME_ELEMENT")[0]
+            #reSizeElement(mxd,"DATAFRAME_ELEMENT",dataFrameElement.elementHeight,mxd.pageSize.width-2,dataFrameElement.elementPositionX,dataFrameElement.elementPositionY)
 
         # Use the uuid module to generate a GUID as part of the output name
         # This will ensure a unique output name
@@ -217,10 +231,10 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
 def reSizeElement(mxd,elementType,height,width,X,Y):
     # Resize element by setting the values below
     element = arcpy.mapping.ListLayoutElements(mxd, elementType)[0]
-    element.elementHeight = element.elementHeight + height
-    element.elementWidth = element.elementWidth + width
-    element.elementPositionX = element.elementPositionX + X
-    element.elementPositionY = element.elementPositionY + Y
+    element.elementHeight = height
+    element.elementWidth = width
+    element.elementPositionX = X
+    element.elementPositionY = Y
 # End of re-size element function
 
 
@@ -259,10 +273,10 @@ def createLegend(mxd):
 
     # Resize legend element by adding values - Height, width, X and Y
     legend = arcpy.mapping.ListLayoutElements(legendMXD, "LEGEND_ELEMENT")[0]
-    height = -legend.elementHeight + (legendMXD.pageSize.height-2) # Resize legend to whole page
-    width = -legend.elementWidth + (legendMXD.pageSize.width-2) # Resize legend to whole page
-    X = 0 # Move the legend to the top left corner of the page
-    Y = (legendMXD.pageSize.height - 1) - legend.elementPositionY # Move the legend to the top left corner of the page
+    height = legendMXD.pageSize.height-2 # Resize legend to whole page
+    width = legendMXD.pageSize.width-2 # Resize legend to whole page
+    X = 1  # Move the legend to the top left corner of the page
+    Y = legendMXD.pageSize.height - 1 # Move the legend to the top left corner of the page
     reSizeElement(legendMXD,"LEGEND_ELEMENT",height,width,X,Y)
     # Use the uuid module to generate a GUID as part of the output name
     # This will ensure a unique output name
