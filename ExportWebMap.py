@@ -4,7 +4,7 @@
 #             for maps with a number of layers.
 # Author:     Shaun Weston (shaun_weston@eagle.co.nz)
 # Date Created:    29/03/2017
-# Last Updated:    30/03/2017
+# Last Updated:    09/04/2017
 # Copyright:   (c) Eagle Technology
 # ArcGIS Version:   ArcMap 10.3+
 # Python Version:   2.7
@@ -65,6 +65,17 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
         printMessage("Converting web map to a map document...","info")
         result = arcpy.mapping.ConvertWebMapToMapDocument(webmapJSON, templateMxd)
         mxd = result.mapDocument
+        # Get the PDF and reset values
+        DPI = result.DPI
+        # Good print option
+        if (int(DPI) == 150):
+            DPI = 96
+        # Best print option
+        elif (int(DPI) == 300):
+            DPI = 180
+        # Fast print option
+        else:
+            DPI = 72
 
         # Reference the data frame that contains the webmap
         # Note: ConvertWebMapToMapDocument renames the active dataframe in the template_mxd to "Webmap"
@@ -94,24 +105,24 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
 
                 ### Custom code for WCC ###
                 # Remove all graphic elements
-                #for element in arcpy.mapping.ListLayoutElements(mxd, "GRAPHIC_ELEMENT"):
-                #    # Remove the graphic by moving it off the page
-                #    element.elementPositionX = -5000
-                #    element.elementPositionY = -5000
+                for element in arcpy.mapping.ListLayoutElements(mxd, "GRAPHIC_ELEMENT"):
+                    # Remove the graphic by moving it off the page
+                    element.elementPositionX = -5000
+                    element.elementPositionY = -5000
                 # Resize data frame element if needed by adding values - Height, width, X and Y
-                #dataFrameElement = arcpy.mapping.ListLayoutElements(mxd, "DATAFRAME_ELEMENT")[0]
-                #reSizeElement(mxd,"DATAFRAME_ELEMENT",dataFrameElement.elementHeight,mxd.pageSize.width-2,dataFrameElement.elementPositionX,dataFrameElement.elementPositionY)
+                dataFrameElement = arcpy.mapping.ListLayoutElements(mxd, "DATAFRAME_ELEMENT")[0]
+                reSizeElement(mxd,"DATAFRAME_ELEMENT",dataFrameElement.elementHeight,mxd.pageSize.width-2,dataFrameElement.elementPositionX,dataFrameElement.elementPositionY)
         # No legend element
-        #else:
+        else:
             ### Custom code for WCC ###
             # Remove all graphic elements
-            #for element in arcpy.mapping.ListLayoutElements(mxd, "GRAPHIC_ELEMENT"):
-            #    # Remove the graphic by moving it off the page
-            #    element.elementPositionX = -5000
-            #    element.elementPositionY = -5000
+            for element in arcpy.mapping.ListLayoutElements(mxd, "GRAPHIC_ELEMENT"):
+                # Remove the graphic by moving it off the page
+                element.elementPositionX = -5000
+                element.elementPositionY = -5000
             # Resize data frame element if needed by adding values - Height, width, X and Y
-            #dataFrameElement = arcpy.mapping.ListLayoutElements(mxd, "DATAFRAME_ELEMENT")[0]
-            #reSizeElement(mxd,"DATAFRAME_ELEMENT",dataFrameElement.elementHeight,mxd.pageSize.width-2,dataFrameElement.elementPositionX,dataFrameElement.elementPositionY)
+            dataFrameElement = arcpy.mapping.ListLayoutElements(mxd, "DATAFRAME_ELEMENT")[0]
+            reSizeElement(mxd,"DATAFRAME_ELEMENT",dataFrameElement.elementHeight,mxd.pageSize.width-2,dataFrameElement.elementPositionX,dataFrameElement.elementPositionY)
 
         # Use the uuid module to generate a GUID as part of the output name
         # This will ensure a unique output name
@@ -126,13 +137,13 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
                 # Create a new PDF and append the pages
                 output = 'Map1_{}.{}'.format(str(uuid.uuid1()), format)
                 outputFile1 = os.path.join(arcpy.env.scratchFolder, output)
-                arcpy.mapping.ExportToPDF(mxd, outputFile1)
+                arcpy.mapping.ExportToPDF(mxd, outputFile1, resolution=DPI)
                 outputPDF = arcpy.mapping.PDFDocumentCreate(outputFile)
                 outputPDF.appendPages(outputFile1)
                 outputPDF.appendPages(legendPDF)
             # Just one page PDF
             else:
-                arcpy.mapping.ExportToPDF(mxd, outputFile)
+                arcpy.mapping.ExportToPDF(mxd, outputFile, resolution=DPI)
         elif format.lower() == "jpg":
             arcpy.mapping.ExportToJPEG(mxd, outputFile)
         elif format.lower() == "png":
