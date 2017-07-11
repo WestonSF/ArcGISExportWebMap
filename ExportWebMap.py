@@ -4,7 +4,7 @@
 #             for maps with a number of layers.
 # Author:     Shaun Weston (shaun_weston@eagle.co.nz)
 # Date Created:    29/03/2017
-# Last Updated:    09/04/2017
+# Last Updated:    11/07/2017
 # Copyright:   (c) Eagle Technology
 # ArcGIS Version:   ArcMap 10.3+
 # Python Version:   2.7
@@ -87,10 +87,24 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
             # Reference the legend in the map document
             legend = arcpy.mapping.ListLayoutElements(mxd, "LEGEND_ELEMENT")[0]
 
-            # Get a list of service layers that are on in the legend because the incoming
-            # JSON can specify which service layers/sublayers are on/off in the legend
-            legendServiceLayerNames = [lslyr.name for lslyr in legend.listLegendItemLayers()
-                               if lslyr.isServiceLayer and not lslyr.isGroupLayer]
+            # Get the number of legend items
+            legendItemsVisible = 0
+            mapScale = df.scale
+            for layer in legend.listLegendItemLayers():
+                # If the legend item is visible on the current map
+                if (layer.visible == True):
+                    if (layer.minScale > mapScale) and (layer.maxScale < mapScale):
+                        legendItemsVisible = legendItemsVisible + 1
+
+            # If there are no legend items
+            if (legendItemsVisible == 0):
+                # Remove the legend by moving it off the page
+                legend.elementPositionX = -5000
+                legend.elementPositionY = -5000
+
+                # Resize data frame element if needed by adding values - Height, width, X and Y
+                dataFrameElement = arcpy.mapping.ListLayoutElements(mxd, "DATAFRAME_ELEMENT")[0]
+                reSizeElement(mxd,"DATAFRAME_ELEMENT",dataFrameElement.elementHeight,mxd.pageSize.width-2,dataFrameElement.elementPositionX,dataFrameElement.elementPositionY)
 
             # If legend is full for PDFs
             if ((legend.isOverflowing) and (format.lower() == "pdf")):
@@ -103,23 +117,11 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
                 legend.elementPositionX = -5000
                 legend.elementPositionY = -5000
 
-                ### Custom code for WCC ###
-                # Remove all graphic elements
-                for element in arcpy.mapping.ListLayoutElements(mxd, "GRAPHIC_ELEMENT"):
-                    # Remove the graphic by moving it off the page
-                    element.elementPositionX = -5000
-                    element.elementPositionY = -5000
                 # Resize data frame element if needed by adding values - Height, width, X and Y
                 dataFrameElement = arcpy.mapping.ListLayoutElements(mxd, "DATAFRAME_ELEMENT")[0]
                 reSizeElement(mxd,"DATAFRAME_ELEMENT",dataFrameElement.elementHeight,mxd.pageSize.width-2,dataFrameElement.elementPositionX,dataFrameElement.elementPositionY)
         # No legend element
         else:
-            ### Custom code for WCC ###
-            # Remove all graphic elements
-            for element in arcpy.mapping.ListLayoutElements(mxd, "GRAPHIC_ELEMENT"):
-                # Remove the graphic by moving it off the page
-                element.elementPositionX = -5000
-                element.elementPositionY = -5000
             # Resize data frame element if needed by adding values - Height, width, X and Y
             dataFrameElement = arcpy.mapping.ListLayoutElements(mxd, "DATAFRAME_ELEMENT")[0]
             reSizeElement(mxd,"DATAFRAME_ELEMENT",dataFrameElement.elementHeight,mxd.pageSize.width-2,dataFrameElement.elementPositionX,dataFrameElement.elementPositionY)
@@ -385,3 +387,5 @@ if __name__ == '__main__':
         # Install the proxy
         urllib2.install_opener(openURL)
     mainFunction(*argv)
+
+
