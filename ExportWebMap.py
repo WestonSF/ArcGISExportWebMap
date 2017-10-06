@@ -4,7 +4,7 @@
 #             for maps with a number of layers.
 # Author:     Shaun Weston (shaun_weston@eagle.co.nz)
 # Date Created:    29/03/2017
-# Last Updated:    11/07/2017
+# Last Updated:    06/10/2017
 # Copyright:   (c) Eagle Technology
 # ArcGIS Version:   ArcMap 10.3+
 # Python Version:   2.7
@@ -52,6 +52,7 @@ else:
     # Python 2.x
     import urllib2
 import uuid
+import json
 
 
 # Start of main function
@@ -61,21 +62,30 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
         # Get the requested map document
         templateMxd = os.path.join(layoutTemplatesFolder, layoutTemplate + '.mxd')
 
+        if (webmapJSON):
+            # Get the web map JSON
+            webmapObject = json.loads(webmapJSON)
+            # Get the scale and adjust slightly to fix issue with cached map/image service not showing at lowest level
+            if ("scale" in webmapObject["mapOptions"]):
+                webmapObject["mapOptions"]["scale"] = webmapObject["mapOptions"]["scale"] + 0.1
+                webmapJSON = json.dumps(webmapObject)
+
         # Convert the WebMap to a map document
         printMessage("Converting web map to a map document...","info")
         result = arcpy.mapping.ConvertWebMapToMapDocument(webmapJSON, templateMxd)
         mxd = result.mapDocument
-        # Get the PDF and reset values
+
+        # Get the DPI and reset values
         DPI = result.DPI
         # Good print option
         if (int(DPI) == 150):
-            DPI = 96
+            DPI = 150
         # Best print option
         elif (int(DPI) == 300):
-            DPI = 180
+            DPI = 300
         # Fast print option
         else:
-            DPI = 72
+            DPI = 96
 
         # Reference the data frame that contains the webmap
         # Note: ConvertWebMapToMapDocument renames the active dataframe in the template_mxd to "Webmap"
@@ -387,5 +397,3 @@ if __name__ == '__main__':
         # Install the proxy
         urllib2.install_opener(openURL)
     mainFunction(*argv)
-
-
