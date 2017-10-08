@@ -2,9 +2,11 @@
 # Name:       Export Web Map
 # Purpose:    Creates a map layout based of an MXD template and webmap input. Will create a seperate legend page
 #             for maps with a number of layers.
+#             NOTE: For the print templates, leave the default gap of 5 pt and wrap labels off. Add in a "dummy"
+#             feature class to change the text size of legend items.
 # Author:     Shaun Weston (shaun_weston@eagle.co.nz)
 # Date Created:    29/03/2017
-# Last Updated:    06/10/2017
+# Last Updated:    09/10/2017
 # Copyright:   (c) Eagle Technology
 # ArcGIS Version:   ArcMap 10.3+
 # Python Version:   2.7
@@ -103,7 +105,7 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
             for layer in legend.listLegendItemLayers():
                 # If the legend item is visible on the current map
                 if (layer.visible == True):
-                    if (layer.minScale > mapScale) and (layer.maxScale < mapScale):
+                    if ((layer.minScale > mapScale) or (layer.minScale == 0)) and (layer.maxScale < mapScale):
                         legendItemsVisible = legendItemsVisible + 1
 
             # If there are no legend items
