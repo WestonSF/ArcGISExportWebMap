@@ -2,11 +2,11 @@
 # Name:       Export Web Map
 # Purpose:    Creates a map layout based of an MXD template and webmap input. Will create a seperate legend page
 #             for maps with a number of layers.
-#             NOTE: For the print templates, leave the default gap of 5 pt and wrap labels off. Add in a "dummy"
-#             feature class to change the text size of legend items.
+#             NOTE: To use a dynamic legend in the templates, the legend element needs to be called "Dynmaic Legend"
+#             and there needs to be a legend border graphic called "Legend Border".
 # Author:     Shaun Weston (shaun_weston@eagle.co.nz)
 # Date Created:    29/03/2017
-# Last Updated:    09/10/2017
+# Last Updated:    13/10/2017
 # Copyright:   (c) Eagle Technology
 # ArcGIS Version:   ArcMap 10.3+
 # Python Version:   2.7
@@ -55,12 +55,17 @@ else:
     import urllib2
 import uuid
 import json
+dynLegendOverflow = False
+noLegendLayers = ["Road Name","Road Name (LINZ)","Address","Legal Description (LINZ)","Plan Number"]
 
 
 # Start of main function
 def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFile): # Get parameters from ArcGIS Desktop tool by seperating by comma e.g. (var1 is 1st parameter,var2 is 2nd parameter,var3 is 3rd parameter)
     try:
         # --------------------------------------- Start of code --------------------------------------- #
+        global dynLegendOverflow
+        global noLegendLayers
+
         # Get the requested map document
         templateMxd = os.path.join(layoutTemplatesFolder, layoutTemplate + '.mxd')
 
@@ -93,11 +98,75 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
         # Note: ConvertWebMapToMapDocument renames the active dataframe in the template_mxd to "Webmap"
         df = arcpy.mapping.ListDataFrames(mxd, 'Webmap')[0]
 
+        # Get a list of all service layer names in the map
+        serviceLayersNames = [slyr.name for slyr in arcpy.mapping.ListLayers(mxd, data_frame=df)
+                              if slyr.isServiceLayer and slyr.visible and not slyr.isGroupLayer]
+
+        # Create a list of all possible vector layer names in the map that could have a corresponding service layer
+        vectorLayersNames = [vlyr.name for vlyr in arcpy.mapping.ListLayers(mxd, data_frame=df)
+                             if not vlyr.isServiceLayer and not vlyr.isGroupLayer]
+
+        # Get a list of all service layers that do have a corresponding vector layer
+        removeServiceLayerNameList = [slyrName for slyrName in serviceLayersNames
+                               if slyrName in vectorLayersNames]
+
+        # Get a list of all vector layers that don't have a corresponding service layer
+        removeVectorLayerNameList = [vlyrName for vlyrName in vectorLayersNames
+                               if vlyrName not in serviceLayersNames]
+
+        # Remove all vector layers that don't have a corresponding service layer
+        layerCount = 0
+        for lyr in arcpy.mapping.ListLayers(mxd, data_frame=df):
+            # Get the first layer
+            if (layerCount == 0):
+                firstLayer = lyr
+            if not lyr.isGroupLayer \
+            and not lyr.isServiceLayer \
+            and lyr.name in removeVectorLayerNameList \
+            and lyr.name in vectorLayersNames:
+                arcpy.mapping.RemoveLayer(df, lyr)
+            layerCount = layerCount + 1
+
+        # Move vector layers to the top of the data frame
+        if (len(vectorLayersNames) > 0):
+            for lyr in arcpy.mapping.ListLayers(mxd, data_frame=df):
+                if not lyr.isGroupLayer \
+                and not lyr.isServiceLayer \
+                and lyr.name in vectorLayersNames:
+                    # Move the layer before the first layer
+                    arcpy.mapping.MoveLayer(df, firstLayer, lyr, "BEFORE")
+
         # If there is a legend element
         legendPDF = ""
         if (len(arcpy.mapping.ListLayoutElements(mxd, "LEGEND_ELEMENT")) > 0):
             # Reference the legend in the map document
             legend = arcpy.mapping.ListLayoutElements(mxd, "LEGEND_ELEMENT")[0]
+
+            # Get a list of service layers that are on in the legend because the incoming JSON can specify which service layers/sublayers are on/off in the legend
+            legendServiceLayerNames = [lslyr.name for lslyr in legend.listLegendItemLayers()
+                                       if lslyr.isServiceLayer and not lslyr.isGroupLayer]
+
+            # Remove vector layers from the legend where the corresponding service layer is also off in the legend
+            for lvlyr in legend.listLegendItemLayers():
+                if not lvlyr.isServiceLayer \
+                and lvlyr.name not in legendServiceLayerNames \
+                and not lvlyr.isGroupLayer \
+                and lvlyr.name in vectorLayersNames:
+                    legend.removeItem(lvlyr)
+
+            # Remove all layers from the legend specified in the no legend layers global array
+            for lvlyr in legend.listLegendItemLayers():
+                if lvlyr.name in noLegendLayers:
+                    legend.removeItem(lvlyr)
+
+            # Remove all service layers that do have a corresponding vector layer - Make not visible
+            for slyr in arcpy.mapping.ListLayers(mxd, data_frame=df):
+                if slyr.isServiceLayer \
+                and slyr.name in removeServiceLayerNameList \
+                and slyr.name in serviceLayersNames \
+                and not slyr.isGroupLayer:
+                    slyr.visible= False
+                    arcpy.mapping.RemoveLayer(df, slyr)
 
             # Get the number of legend items
             legendItemsVisible = 0
@@ -114,12 +183,35 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
                 legend.elementPositionX = -5000
                 legend.elementPositionY = -5000
 
+                ### Custom code for WCC ###
+##                # Remove all graphic elements
+##                for element in arcpy.mapping.ListLayoutElements(mxd, "GRAPHIC_ELEMENT"):
+##                    # Remove the graphic by moving it off the page
+##                    element.elementPositionX = -5000
+##                    element.elementPositionY = -5000
+
                 # Resize data frame element if needed by adding values - Height, width, X and Y
                 dataFrameElement = arcpy.mapping.ListLayoutElements(mxd, "DATAFRAME_ELEMENT")[0]
                 reSizeElement(mxd,"DATAFRAME_ELEMENT",dataFrameElement.elementHeight,mxd.pageSize.width-2,dataFrameElement.elementPositionX,dataFrameElement.elementPositionY)
 
+            # If there is a legend element
+            if (len(arcpy.mapping.ListLayoutElements(mxd, "LEGEND_ELEMENT")) > 0):
+                # Reference the legend in the map document
+                legend = arcpy.mapping.ListLayoutElements(mxd, "LEGEND_ELEMENT")[0]
+
+                # If it is a dynamic legend
+                if (legend.name.lower() == "dynamic legend"):
+                    # Get the size of the legend border
+                    for element in arcpy.mapping.ListLayoutElements(mxd, "GRAPHIC_ELEMENT"):
+                        # If there is a legend border element
+                        if (element.name.lower() == "legend border"):
+                            # If the legend is larger than the legend border (minus a 0.2 buffer) i.e. Is overflowing
+                            if (legend.elementHeight > (element.elementHeight-0.2)):
+                                # Set the legend overflowing parameter to true
+                                dynLegendOverflow = True
+
             # If legend is full for PDFs
-            if ((legend.isOverflowing) and (format.lower() == "pdf")):
+            if (((legend.isOverflowing) or (dynLegendOverflow)) and (format.lower() == "pdf")):
                 printMessage("Legend is full, creating legend on new page...","info")
 
                 # Create legend page
@@ -129,14 +221,31 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
                 legend.elementPositionX = -5000
                 legend.elementPositionY = -5000
 
+                ### Custom code for WCC ###
+##                # Remove all graphic elements
+##                for element in arcpy.mapping.ListLayoutElements(mxd, "GRAPHIC_ELEMENT"):
+##                    # Remove the graphic by moving it off the page
+##                    element.elementPositionX = -5000
+##                    element.elementPositionY = -5000
+
                 # Resize data frame element if needed by adding values - Height, width, X and Y
                 dataFrameElement = arcpy.mapping.ListLayoutElements(mxd, "DATAFRAME_ELEMENT")[0]
                 reSizeElement(mxd,"DATAFRAME_ELEMENT",dataFrameElement.elementHeight,mxd.pageSize.width-2,dataFrameElement.elementPositionX,dataFrameElement.elementPositionY)
         # No legend element
         else:
+            ### Custom code for WCC ###
+##            # Remove all graphic elements
+##            for element in arcpy.mapping.ListLayoutElements(mxd, "GRAPHIC_ELEMENT"):
+##                # Remove the graphic by moving it off the page
+##                element.elementPositionX = -5000
+##                element.elementPositionY = -5000
+
             # Resize data frame element if needed by adding values - Height, width, X and Y
             dataFrameElement = arcpy.mapping.ListLayoutElements(mxd, "DATAFRAME_ELEMENT")[0]
             reSizeElement(mxd,"DATAFRAME_ELEMENT",dataFrameElement.elementHeight,mxd.pageSize.width-2,dataFrameElement.elementPositionX,dataFrameElement.elementPositionY)
+
+        ### Debugging ###
+##        mxd.saveACopy(r"C:\Temp\OutputMap.mxd")
 
         # Use the uuid module to generate a GUID as part of the output name
         # This will ensure a unique output name
@@ -256,15 +365,21 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
 def reSizeElement(mxd,elementType,height,width,X,Y):
     # Resize element by setting the values below
     element = arcpy.mapping.ListLayoutElements(mxd, elementType)[0]
-    element.elementHeight = height
-    element.elementWidth = width
-    element.elementPositionX = X
-    element.elementPositionY = Y
+    if (height):
+        element.elementHeight = height
+    if (width):
+        element.elementWidth = width
+    if (X):
+        element.elementPositionX = X
+    if (Y):
+        element.elementPositionY = Y
 # End of re-size element function
 
 
 # Start of create legend function
 def createLegend(mxd):
+    global dynLegendOverflow
+
     # Create a copy of the MXD
     copyMXD = 'Legend_{}.{}'.format(str(uuid.uuid1()), ".mxd")
     mxd.saveACopy(copyMXD)
@@ -298,8 +413,24 @@ def createLegend(mxd):
 
     # Resize legend element by adding values - Height, width, X and Y
     legend = arcpy.mapping.ListLayoutElements(legendMXD, "LEGEND_ELEMENT")[0]
-    height = legendMXD.pageSize.height-2 # Resize legend to whole page
-    width = legendMXD.pageSize.width-2 # Resize legend to whole page
+
+    # If it is a fixed legend
+    if not dynLegendOverflow:
+        height = legendMXD.pageSize.height-2 # Resize legend to whole page
+        width = legendMXD.pageSize.width-2 # Resize legend to whole page
+    # If it is a dynamic legend
+    else:
+        height = None # Keep legend the same size
+        width = None # Keep legend the same size
+
+        # If the legend is bigger than the page
+        legendColumns = 1
+        # While the legend is bigger than the page, keep adding columns
+        while ((legend.elementHeight/legendMXD.pageSize.height) > 0.95):
+            # Add another column to the legend
+            legendColumns = legendColumns + 1
+            legend.adjustColumnCount(legendColumns)
+
     X = 1  # Move the legend to the top left corner of the page
     Y = legendMXD.pageSize.height - 1 # Move the legend to the top left corner of the page
     reSizeElement(legendMXD,"LEGEND_ELEMENT",height,width,X,Y)
@@ -307,6 +438,10 @@ def createLegend(mxd):
     # This will ensure a unique output name
     output = 'Legend_{}.{}'.format(str(uuid.uuid1()), ".pdf")
     outputFile = os.path.join(arcpy.env.scratchFolder, output)
+
+    ### Debugging ###
+##    legendMXD.saveACopy(r"C:\Temp\OutputLegend.mxd")
+
     # Export the WebMap
     printMessage("Exporting legend to an output file...","info")
     arcpy.mapping.ExportToPDF(legendMXD, outputFile)
