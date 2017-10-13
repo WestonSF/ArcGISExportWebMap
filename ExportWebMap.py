@@ -117,24 +117,20 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
         # Remove all vector layers that don't have a corresponding service layer
         layerCount = 0
         for lyr in arcpy.mapping.ListLayers(mxd, data_frame=df):
-            # Get the first layer
-            if (layerCount == 0):
-                firstLayer = lyr
+            # Check if it's an other layer type i.e drawn graphics
+            otherLayerType = False
+            if lyr.supports("serviceProperties"):
+                if (lyr.serviceProperties["ServiceType"].lower() == "other"):
+                    otherLayerType = True
+
             if not lyr.isGroupLayer \
             and not lyr.isServiceLayer \
             and lyr.name in removeVectorLayerNameList \
             and lyr.name in vectorLayersNames:
-                arcpy.mapping.RemoveLayer(df, lyr)
+                # If it's an other layer type i.e drawn graphics, don't remove
+                if not otherLayerType:
+                    arcpy.mapping.RemoveLayer(df, lyr)
             layerCount = layerCount + 1
-
-        # Move vector layers to the top of the data frame
-        if (len(vectorLayersNames) > 0):
-            for lyr in arcpy.mapping.ListLayers(mxd, data_frame=df):
-                if not lyr.isGroupLayer \
-                and not lyr.isServiceLayer \
-                and lyr.name in vectorLayersNames:
-                    # Move the layer before the first layer
-                    arcpy.mapping.MoveLayer(df, firstLayer, lyr, "BEFORE")
 
         # If there is a legend element
         legendPDF = ""
