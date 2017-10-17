@@ -284,7 +284,7 @@ def mainFunction(webmapJSON,agsConnections,layoutTemplatesFolder,layoutTemplate,
             if outputFile:
                 # If ArcGIS desktop installed
                 if (arcgisDesktop == "true"):
-                    arcpy.SetParameter(4, outputFile)
+                    arcpy.SetParameter(5, outputFile)
                 # ArcGIS desktop not installed
                 else:
                     return output
