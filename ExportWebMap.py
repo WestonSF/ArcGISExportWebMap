@@ -6,7 +6,7 @@
 #             and there needs to be a legend border graphic called "Legend Border".
 # Author:     Shaun Weston (shaun_weston@eagle.co.nz)
 # Date Created:    29/03/2017
-# Last Updated:    13/10/2017
+# Last Updated:    17/10/2017
 # Copyright:   (c) Eagle Technology
 # ArcGIS Version:   ArcMap 10.3+
 # Python Version:   2.7
@@ -60,7 +60,7 @@ noLegendLayers = ["Road Name","Road Name (LINZ)","Address","Legal Description (L
 
 
 # Start of main function
-def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFile): # Get parameters from ArcGIS Desktop tool by seperating by comma e.g. (var1 is 1st parameter,var2 is 2nd parameter,var3 is 3rd parameter)
+def mainFunction(webmapJSON,agsConnections,layoutTemplatesFolder,layoutTemplate,format,outputFile): # Get parameters from ArcGIS Desktop tool by seperating by comma e.g. (var1 is 1st parameter,var2 is 2nd parameter,var3 is 3rd parameter)
     try:
         # --------------------------------------- Start of code --------------------------------------- #
         global dynLegendOverflow
@@ -79,7 +79,12 @@ def mainFunction(webmapJSON,layoutTemplatesFolder,layoutTemplate,format,outputFi
 
         # Convert the WebMap to a map document
         printMessage("Converting web map to a map document...","info")
-        result = arcpy.mapping.ConvertWebMapToMapDocument(webmapJSON, templateMxd)
+        # If ArcGIS server connection file provided (for connecting to secured services), then add this.
+        if (agsConnections):
+            connectionFiles = {"SERVER_CONNECTION_FILE":agsConnections}
+            result = arcpy.mapping.ConvertWebMapToMapDocument(webmapJSON, templateMxd,extra_conversion_options=connectionFiles)
+        else:
+            result = arcpy.mapping.ConvertWebMapToMapDocument(webmapJSON, templateMxd)
         mxd = result.mapDocument
 
         # Get the DPI and reset values
